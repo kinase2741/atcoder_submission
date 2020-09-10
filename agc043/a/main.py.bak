@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+import sys
+sys.setrecursionlimit(10**7)
+
+INF = 10**7
+DIRECTION = [[0,1],[1,0]]
+
+def solve(h,w,board):
+    # memo = [[-1]*w for _ in range(h)]
+    def dfs(y,x,gy,gx,cnt=0):
+        if y == gy and x == gx:
+            return cnt + (board[y][x] == '#')
+        if not (0 <= y < h and 0 <= x < w):
+            return INF
+        res = INF
+        for d in DIRECTION:
+            ny = y + d[0]
+            nx = x + d[1]
+            res = min(res,dfs(ny,nx,gy,gx,cnt+(board[y][x]=='#')))
+        return res
+
+    return dfs(0,0,h-1,w-1)
+
+
+
+def main():
+    H,W = map(int,input().split())
+    board = [input() for _ in range(H)]
+    print(solve(H,W,board))
+    # write c
+
+
+if __name__ == '__main__':
+    main()
