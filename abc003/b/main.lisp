@@ -97,15 +97,35 @@
 
 
 
-;;; Body
 
-(defun solve (n)
-  n)
+
+
+(defun solve (str1 str2)
+  (loop for i below (length str1)
+     do
+       (let ((c1 (char str1 i))
+             (c2 (char str2 i)))
+         (when
+             (or (and
+                  (not (char-equal c1 #\@))
+                  (not (char-equal c2 #\@))
+                  (not (char-equal c1 c2)))
+                 (and
+                  (or (char-equal c1 #\@)
+                      (char-equal c2 #\@))
+                  (or (not (find c1 "atcoder@"
+                                 :test #'char-equal))
+                      (not (find c2 "atcoder@"
+                                 :test #'char-equal)))))
+           (return "You will lose")))
+     finally
+       (return "You can win")))
 
 
 (defun main ()
   (declare #.OPT)
-  (let ((n (read)))
-    (format t "~a~&" (solve n))))
+  (let ((str1 (read-line))
+        (str2 (read-line)))
+    (format t "~a~&" (solve str1 str2))))
 
 #-swank (main)

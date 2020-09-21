@@ -104,12 +104,25 @@
 
 ;;; Write code here
 
-(defun solve (n)
-  n)
+(defun solve (x y a b &optional (time 0) (now-a t)(res 0))
+  (if now-a
+      (cond
+        ((null a) res)
+        ((>= (first a) time) (solve x y (rest a) b (+ (first a) x) nil res))
+        (t (solve x y (rest a) b time t res)))
+      (cond
+        ((null b) res)
+        ((>= (first b) time) (solve x y a (rest b) (+ (first b) y) t (1+ res)))
+        (t (solve x y a (rest b) time nil res)))))
 
 
 (defun main ()
-  (let ((n (read)))
-    (format t "~a~%" (solve n))))
+  (let ((n (read))
+        (m (read))
+        (x (read))
+        (y (read)))
+    (let ((a (read-numbers-to-list n))
+          (b (read-numbers-to-list m)))
+    (format t "~a~%" (solve x y a b)))))
 
 (main)

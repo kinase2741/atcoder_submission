@@ -86,13 +86,41 @@
 
 ;;; Body
 
-(defun solve (n)
-  n)
+(defun str->lst (str)
+  (loop for i below (length str)
+     with res = nil
+     with chr = nil
+     do
+       ()))
+
+
+(defun solve (s)
+  (loop for i below (length s)
+     with cnt = 0
+     with prev = nil
+     with res = nil
+     do
+       (cond
+         ((null prev)
+          (setq prev (char s 0))
+          (incf cnt))
+         ((char-equal (char s i)
+                       prev)
+           (incf cnt))
+         (t
+          (push prev res)
+          (push cnt res)
+          (setq prev (char s i))
+          (setq cnt 1)))
+     finally
+       (push prev res)
+       (push cnt res)
+       (return (format nil "~{~a~}" (reverse res)))))
 
 
 (defun main ()
   (declare #.OPT)
-  (let ((n (read)))
-    (format t "~a~&" (solve n))))
+  (let ((s (read-line)))
+    (format t "~a~&" (solve s))))
 
 #-swank (main)

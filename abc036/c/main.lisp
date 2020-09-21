@@ -99,13 +99,23 @@
 
 ;;; Body
 
-(defun solve (n)
-  n)
+(defun solve (a)
+  (let ((num-list (sort (remove-duplicates a) #'<)))
+    (let ((a-b-table (make-hash-table
+                      :size (expt 10 6))))
+      (loop until (null num-list) with i = 0 do
+           (setf (gethash (pop num-list) a-b-table) i)
+           (incf i))
+      (mapcar (lambda (x)
+                (gethash x a-b-table))
+              a))))
+      
 
 
 (defun main ()
   (declare #.OPT)
   (let ((n (read)))
-    (format t "~a~&" (solve n))))
+    (let ((a (read-numbers-to-list n)))
+      (princ-for-each-line (solve a)))))
 
 #-swank (main)

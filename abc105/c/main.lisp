@@ -99,18 +99,25 @@
 
 ;;; Body
 
-(defun lst->int (xs &optional (acc 0))
+(defun lst->int (xs)
   (if (null xs)
-      acc
-      (lst->int (rest xs) (+ (* 10 acc)
-                             (first xs)))))
+      "0"
+      (apply #'concatenate 'string
+             (mapcar (lambda (x)
+                       (format nil "~a" x))
+                     xs))))
+
+(defun sgn (x)
+  (if (zerop x)
+      0
+      (/ x (abs x))))
 
 (defun solve (n &optional acc)
   (if (zerop n)
       (lst->int acc)
-      (solve (floor n 2)
-             (cons (rem n 2)
-                   acc))))
+      (multiple-value-bind (q r) (truncate n 2)
+        (solve (truncate (- n (abs r)) -2)
+               (cons (abs r) acc)))))
 
 
 (defun main ()

@@ -73,43 +73,35 @@
 
 ;;; Body
 
-(defmethod make-cumlative-sum ((sequence list))
-  (labels ((inner (sequence &optional (acc '(0)))
-             (if (null sequence)
-                 (reverse acc)
-                 (inner (rest sequence) (cons (+ (first sequence)
-                                                 (first acc))
-                                              acc)))))
-    (inner sequence)))
 
+(defun cumlative-sum (xs &optional (acc '(0)))
+  (if (null xs)
+      (reverse acc)
+      (cumlative-sum (rest xs) (cons (+ (first xs)
+                                        (first acc))
+                                     acc))))
 
-(defmethod make-cumlative-sum ((sequence array))
-  (declare (type (simple-array fixnum) sequence))
-  (the array
-       (let* ((n (length sequence))
-              (acc (make-array (1+ n) :element-type 'integer :initial-element 0)))
-         (loop for i below n do
-              (setf (aref acc (1+ i)) (+ (aref sequence i)
-                                         (aref acc i)))
-            finally
-              (return acc)))))
+(defun calc (a first-plus-p &optional (s 0) (res 0))
+  (loop for x in a do
+       (when (and (>= (+ s x) 0)
+                  (not first-plus-p))
+         (incf res (1+ (abs (+ s x))))
+         (decf s (1+ (abs (+ s x)))))
+       (when (and (<= (+ s x) 0)
+                  first-plus-p)
+         (incf res (1+ (abs (+ s x))))
+         (incf s (1+ (abs (+ s x)))))
+       (setf first-plus-p (not first-plus-p))
+     finally
+       (return res)))
 
-
-
-(defun solve (n a)
-  (declare (fixnum n)
-           (list a))
-  (let ((cum (make-cumlative-sum a)))
-    (declare (list cum))
-    (labels ((inner (xs &optional (res 0) (plus-flag nil))
-               (cond
-                 ((null xs) res)
-                 ((or (and plus-flag (>= (first xs) 0))
-                      (and (not plus-flag) (<= (first xs) 0)))
-                  (inner (rest xs) (+ res (1+ (abs (first xs)))) (not plus-flag)))
-                 (t (inner (rest xs) res (not plus-flag))))))
-      (min (inner (rest cum) 0 t)
-           (inner (rest cum) 0 nil)))))
+(defun solve (a)
+  (declare (list a))
+  (let ((cum (cumlative-sum a)))
+    (declare (list a))
+    (the fixnum
+         (min (calc (rest cum) t)
+              (calc (rest cum) nil)))))
  
 
 (defun main ()
@@ -117,7 +109,7 @@
   (let* ((n (read))
          (a (read-numbers-to-list n)))
     (declare (fixnum n)
-             (list a))
-    (format t "~a~&" (solve n a))))
+             ((array fixnum 1) a))
+    (format t "~a~&" (solve a))))
 
 #-swank (main)

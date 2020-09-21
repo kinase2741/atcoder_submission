@@ -82,12 +82,28 @@
 
 ;;; Write code here
 
-(defun solve (n)
-  n)
+(defun solve (questionalre)
+  (let ((cum (make-array 1000002)))
+    (loop
+       for q in questionalre
+       do
+         (incf (aref cum (first q)))
+         (decf (aref cum (1+ (rest q)))))
+    (loop for i below 1000000
+       with res = (aref cum 0)
+       do
+         (incf (aref cum (1+ i))
+               (aref cum i))
+         (setf res (max res (aref cum (1+ i))))
+       finally
+         (return res))))
+
+
 
 
 (defun main ()
   (let ((n (read)))
-    (format t "~a~%" (solve n))))
+    (let ((questionalre (loop repeat n collect (cons (read) (read)))))
+      (format t "~a~%" (solve questionalre)))))
 
 (main)

@@ -86,13 +86,14 @@
 
 ;;; Body
 
-(defun solve (n)
-  n)
+(defun solve (a b)
+  (- a b))
 
 
 (defun main ()
   (declare #.OPT)
-  (let ((n (read)))
-    (format t "~a~&" (solve n))))
+  (let ((a (read))
+        (b (read)))
+    (format t "~a~&" (solve a b))))
 
 #-swank (main)

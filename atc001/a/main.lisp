@@ -1,74 +1,133 @@
-;;; Utils
+#|
+------------------------------------
+|               Utils               |
+------------------------------------
+|#
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter OPT
+    #+swank '(optimize (speed 3) (safety 2))
+    #-swank '(optimize (speed 3) (safety 0) (debug 0)))
+  #+swank (progn (ql:quickload '(:cl-debug-print :fiveam))
+                 (shadow :run)
+                 (use-package :fiveam)))
+#+swank (cl-syntax:use-syntax cl-debug-print:debug-print-syntax)
+
+#-swank
+(unless (member :child-sbcl *features*)
+  (quit
+   :unix-status
+   (process-exit-code
+    (run-program *runtime-pathname*
+                 `("--control-stack-size" "128MB"
+                   "--noinform" "--disable-ldb" "--lose-on-corruption" "--end-runtime-options"
+                   "--eval" "(push :child-sbcl *features*)"
+                   "--script" ,(namestring *load-pathname*))
+                 :output t :error t :input t))))
+
+
+(defconstant +mod+ 1000000007)
+
+
+(defmacro define-int-types (&rest bits)
+  `(progn
+     ,@(mapcar (lambda (b) `(deftype ,(intern (format nil "INT~a" b)) () '(signed-byte ,b))) bits)
+     ,@(mapcar (lambda (b) `(deftype ,(intern (format nil "UINT~a" b)) () '(unsigned-byte ,b))) bits)))
+
+(define-int-types 2 4 8 16 32 64)
+
+(defmacro buffered-read-line (&optional (buffer-size 30) (in '*standard-input*) (term-char #\Space))
+  (let ((buffer (gensym))
+        (character (gensym))
+        (idx (gensym)))
+    `(let* ((,buffer (load-time-value (make-string ,buffer-size :element-type 'base-char))))
+       (declare (simple-base-string ,buffer)
+                (inline read-byte))
+       (loop for ,character of-type base-char =
+                ,(if (member :swank *features*)
+                     `(read-char ,in nil #\Newline) ; on SLIME
+                     `(code-char (read-byte ,in nil #.(char-code #\Newline))))
+             for ,idx from 0
+             until (char= ,character #\Newline)
+             do (setf (schar ,buffer ,idx) ,character)
+             finally (when (< ,idx ,buffer-size)
+                       (setf (schar ,buffer ,idx) ,term-char))
+                     (return (values ,buffer ,idx))))))
+
+(declaim (ftype (function * (values fixnum &optional)) read-fixnum))
+(defun read-fixnum (&optional (in *standard-input*))
+  (declare (inline read-byte)
+           #-swank (sb-kernel:ansi-stream in))
+  (macrolet ((%read-byte ()
+               `(the (unsigned-byte 8)
+                     #+swank (char-code (read-char in nil #\Nul))
+                     #-swank (read-byte in nil 0))))
+    (let* ((minus nil)
+           (result (loop (let ((byte (%read-byte)))
+                           (cond ((<= 48 byte 57)
+                                  (return (- byte 48)))
+                                 ((zerop byte) ; #\Nul
+                                  (error "Read EOF or #\Nul."))
+                                 ((= byte #.(char-code #\-))
+                                  (setq minus t)))))))
+      (declare ((integer 0 #.most-positive-fixnum) result))
+      (loop
+        (let* ((byte (%read-byte)))
+          (if (<= 48 byte 57)
+              (setq result (+ (- byte 48) (the (integer 0 #.(floor most-positive-fixnum 10)) (* result 10))))
+              (return (if minus (- result) result))))))))
+
+
+(declaim (inline println))
+(defun println (obj &optional (stream *standard-output*))
+  (let ((*read-default-float-format* 'double-float))
+    (prog1
+        (write obj :stream stream)
+      (fresh-line stream))))
+
+(defmacro safe-sort (list test &key (key #'identity))
+  `(progn
+    (declaim (inline sort sb-impl::stable-sort-list))
+    (sort (copy-seq ,list) ,test :key ,key)))
 
 (defmacro read-numbers-to-list (size)
-  `(progn
-     (when (not (integerp ,size))
-       (error "Size must be integer."))
-     (when (< ,size 0)
-       (error "Size must be plus or zero."))
-     (loop repeat ,size collect (read))))
-
-
+  `(loop repeat ,size collect (read-fixnum)))
 
 (defmacro read-numbers-to-array (size)
-  `(progn
-     (when (not (integerp ,size))
-       (error "Size must be integer."))
-     (when (< ,size 0)
-       (error "Size must be plus or zero."))
-     (make-array ,size :initial-contents (read-numbers-to-list ,size))))
+  (let ((i (gensym))
+        (arr (gensym)))
+    `(let ((,arr (make-array ,size
+                             :element-type 'fixnum)))
+       (declare ((array fixnum 1) ,arr))
+       (loop for ,i of-type fixnum below ,size do
+            (setf (aref ,arr ,i) (read))
+          finally
+            (return ,arr)))))
 
-(defmacro read-numbers-to-board (row-size column-size)
+(defmacro read-characters-to-board (row-size column-size)
   (let ((board (gensym))
         (r (gensym))
-        (c (gensym)))
-    `(let ((,board (make-array '(,row-size ,column-size))))
-       (dotimes (,r ,row-size)
-         (dotimes (,c ,column-size)
-           (setf (aref ,board ,r ,c) (read))))
-       ,board)))
-
-
-(defmethod make-cumlative-sum ((sequence list))
-  (labels ((inner (sequence &optional (acc '(0)))
-             (if (null sequence)
-                 (reverse acc)
-                 (inner (rest sequence) (cons (+ (first sequence)
-                                                 (first acc))
-                                              acc)))))
-    (inner sequence)))
-
-
-(defmethod make-cumlative-sum ((sequence array))
-  (declare (type (simple-array fixnum) sequence))
-  (the array
-       (let* ((n (length sequence))
-              (acc (make-array (1+ n) :element-type 'integer :initial-element 0)))
-         (loop for i below n do
-              (setf (aref acc (1+ i)) (+ (aref sequence i)
-                                         (aref acc i)))
-            finally
-              (return acc)))))
-
-
-
+        (c (gensym))
+        (tmp (gensym)))
+    `(let ((,board (make-array (list ,row-size ,column-size) :element-type 'character :adjustable nil)))
+       (dotimes (,r ,row-size ,board)
+         (let ((,tmp (buffered-read-line)))
+           (dotimes (,c ,column-size)
+             (setf (aref ,board ,r ,c) (char ,tmp ,c))))))))
 
 (defmethod princ-for-each-line ((sequence list))
-  (labels ((inner (sequence)
-             (if (null sequence)
-                 (fresh-line)
-                 (progn
-                   (fresh-line)
-                   (princ (first sequence))
-                   (inner (rest sequence))))))
-    (inner sequence)))
+  (format t "~{~a~&~}" sequence))
 
-(defmethod princ-for-each-line ((sequence array))
-  (dotimes (i (length sequence))
-    (fresh-line)
-    (princ (aref sequence i)))
-  (fresh-line))
+(defmethod princ-for-each-line ((sequence vector))
+  (loop for i below (length sequence) do
+       (princ (aref sequence i))
+       (fresh-line)))
 
+(declaim (inline unwrap))
+(defun unwrap (list)
+  (the string
+       (format nil "~{~a~^ ~}" list)))
 
 (defmacro with-buffered-stdout (&body body)
   (let ((out (gensym)))
@@ -77,17 +136,77 @@
          ,@body)
        (write-string (get-output-stream-string ,out)))))
 
+(defmacro maxf (place cand)
+  `(setf ,place (max ,place ,cand)))
+
+(defmacro minf (place cand)
+  `(setf ,place (min ,place ,cand)))
+
+(defmacro modf (place &optional (m +mod+))
+  `(setf ,place (mod ,place ,m)))
+
+(defmacro alambda (parms &body body)
+  `(labels ((self ,parms ,@body))
+     #'self))
+
+(defun iota (count &optional (start 0) (step 1))
+  (loop for i from 0 below count collect (+ start (* i step))))
 
 
+#|
+------------------------------------
+|               Body               |
+------------------------------------
+|#
 
-;;; Write code here
+(defparameter *dy-dx* '((-1 . 0)
+                        (0 . -1)
+                        (1 . 0)
+                        (0 . 1)))
 
-(defun solve (n)
-  n)
+(defun solve (h w board)
+  (let ((memo (make-array (list h w) :initial-element nil))
+        (visited (make-array (list h w) :initial-element nil)))
+    (let (sy sx gy gx)
+      (dotimes (y h)
+        (dotimes (x w)
+          (when (char-equal (aref board y x) #\s)
+            (setq sy y)
+            (setq sx x))
+          (when (char-equal (aref board y x) #\g)
+            (setq gy y)
+            (setq gx x))))
+      (setf (aref memo sy sx) t)
+      (labels ((dfs (y x)
+                 (cond
+                   ((and (= sy y) (= sx x)) t)
+                   ((aref memo y x) t)
+                   (t
+                    (setf (aref visited y x) t)
+                    (setf (aref memo y x)
+                          (loop for dy-dx in *dy-dx* do
+                               (let ((ny (+ y (car dy-dx)))
+                                     (nx (+ x (cdr dy-dx))))
+                                 (when (and
+                                            (<= 0 ny (1- h))
+                                            (<= 0 nx (1- w))
+                                            (null (aref visited ny nx))
+                                            (not (char-equal (aref board ny nx) #\#))
+                                            (dfs ny nx))
+                                   (return t)))
+                             finally
+                               (return nil)))))))
+        (if (dfs gy gx)
+            "Yes"
+            "No")))))
 
 
 (defun main ()
-  (let ((n (read)))
-    (format t "~a~%" (solve n))))
+  (declare #.OPT)
+  (let ((h (read))
+        (w (read)))
+    (let ((board (read-characters-to-board h w)))
+      (princ (solve h w board))
+      (fresh-line))))
 
-(main)
+#-swank (main)
