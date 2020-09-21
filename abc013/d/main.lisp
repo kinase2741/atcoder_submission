@@ -8,7 +8,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter OPT
     #+swank '(optimize (speed 3) (safety 2))
-    #-swank '(optimize (speed 3) (safety 0) (debug 0)))
+    #-swank '(optimize (speed 0) (safety 3) (debug 3)))
   #+swank (progn (ql:quickload '(:cl-debug-print :fiveam))
                  (shadow :run)
                  (use-package :fiveam)))
@@ -159,9 +159,48 @@
 ------------------------------------
 |#
 
+(defun bit-length (k)
+  (if (zerop k)
+      0
+      (1+ (bit-length (floor k 2)))))
 
-(defun solve (n)
-  n)
+(defun simulate (n a)
+  (loop for x across a
+     with memo = (make-array n :initial-contents (iota n))
+     do
+       (rotatef (aref memo (1+ x))
+                (aref memo x))
+     finally
+       (return memo)))
+
+
+(defun solve (n d a)
+  (let ((dub (make-hash-table :test #'equal)))
+    (loop for key below n
+       with memo = (simulate n a)
+       do
+         (setf (gethash (list 0 key) dub)
+               (aref memo key)))
+    (loop for i below (bit-length d)
+       do
+         (loop for key below n
+            do
+              (setf (gethash (list (1+ i) key) dub)
+                    (gethash (list i
+                                   (gethash (list i key) dub))
+                             dub))))
+    (loop for i below (bit-length d)
+       with res = (make-array n :initial-contents (iota n))
+       do
+         (when (= (logand (ash d (- i))
+                          1)
+                  1)
+           (loop for key below n do
+                (setf (aref res key)
+                      (gethash (list i (aref res key)) dub))))
+       finally
+         (return (map 'vector #'1+ res)))))
+   
 
 
 (defun main ()
@@ -169,8 +208,8 @@
   (let ((n (read))
         (m (read))
         (d (read)))
-    (let ((a (read-numbers-to-list n)))
-      (princ (solve n m d a))
+    (let ((a (make-array m :initial-contents (loop repeat m collect (1- (read))))))
+      (princ-for-each-line (solve n d a))
       (fresh-line))))
 
 #-swank (main)

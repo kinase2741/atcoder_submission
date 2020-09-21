@@ -1,9 +1,13 @@
 #|
 ------------------------------------
-|               Utils               |
+                Utils                
 ------------------------------------
 |#
 
+(in-package :cl-user)
+
+(defconstant +mod+ 1000000007)
+;(defconstant +mod+ 998244353)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter OPT
@@ -27,7 +31,6 @@
                  :output t :error t :input t))))
 
 
-(defconstant +mod+ 1000000007)
 
 
 (defmacro define-int-types (&rest bits)
@@ -152,30 +155,115 @@
 (defun iota (count &optional (start 0) (step 1))
   (loop for i from 0 below count collect (+ start (* i step))))
 
+(defun int->lst (integer)
+  (declare ((integer 0) integer))
+  (labels ((sub (int &optional (acc nil))
+             (declare ((integer 0) int)
+                      (list acc))
+             (if (zerop int)
+                 acc
+                 (sub (floor int 10) (cons (rem int 10) acc)))))
+    (sub integer)))
+
+(defun lst->int (list)
+  (declare (list list))
+  (labels ((sub (xs &optional (acc 0))
+             (declare (ftype (function (list &optional (integer 0)) (integer 0)) sub))
+             (declare (list xs)
+                      ((integer 0) acc))
+             (if (null xs)
+                 acc
+                 (sub (rest xs) (+ (* acc 10)
+                                   (rem (first xs) 10))))))
+    (the fixnum
+         (sub list))))
+
+(defun int->str (integer)
+  (format nil "~a" integer))
+
+(defun str->int (str)
+  (parse-integer str))
+
+(defun char->int (char)
+  (declare (character char))
+  (- (char-code char) #.(char-code #\0)))
+
+(declaim (inline prime-factorize-to-list))
+(defun prime-factorize-to-list (integer)
+  (declare ((integer 0) integer))
+  (the list
+       (if (<= integer 1)
+           nil
+           (loop
+              while (<= (* f f) integer)
+              with acc list = nil
+              with f integer = 2
+              do
+                (if (zerop (rem integer f))
+                    (progn
+                      (push f acc)
+                      (setq integer (floor integer f)))
+                    (incf f))
+              finally
+                (when (/= integer 1)
+                  (push integer acc))
+                (return (reverse acc))))))
+
+(declaim (inline prime-p))
+(defun prime-p (integer)
+  (declare ((integer 1) integer))
+  (if (= integer 1)
+      nil
+      (loop
+         with f = 2
+         while (<= (* f f) integer)
+         do
+           (when (zerop (rem integer f))
+             (return nil))
+           (incf f)
+         finally
+           (return t))))
+
 
 #|
 ------------------------------------
-|               Body               |
+                Body                
 ------------------------------------
 |#
 
 
-(defun solve (a b)
-  (labels ((sub (start end d)
-             (if (= start end)
-                 0
-                 (1+ (sub (mod (+ start d) 10)
-                          end
-                          d)))))
-    (min (sub a b 1)
-         (sub a b -1))))
-
-
 (defun main ()
   (declare #.OPT)
-  (let ((a (read))
-        (b (read)))
-    (princ (solve a b))
-    (fresh-line)))
+  (let ((n (read))
+        (q (read)))
+    (declare (uint32 n q))
+    (let ((edges (make-array n :element-type 'list :adjustable nil :initial-element nil))
+          (res (make-array n :element-type 'fixnum :adjustable nil :initial-element 0)))
+      (declare ((array list 1) edges)
+               ((array fixnum 1) res))
+      (loop repeat (1- n) do
+           (let ((a (1- (read-fixnum)))
+                 (b (1- (read-fixnum))))
+             (declare (uint32 a b))
+             (push a (aref edges b))
+             (push b (aref edges a))))
+      (loop repeat q do
+           (let ((p (1- (read-fixnum)))
+                 (x (read-fixnum)))
+             (declare (uint32 p x))
+             (incf (aref res p) x)))
+      (labels ((recursive-incf (node parent)
+                 (declare (uint32 q)
+                          (integer parent))
+                 (unless (= parent -1)
+                   (incf (aref res node)
+                         (aref res parent)))
+                 (mapc (lambda (child)
+                         (unless (= child parent)
+                           (recursive-incf child node)))
+                       (aref edges node))))
+        (recursive-incf 0 -1)
+        (princ (unwrap (map 'list #'identity res)))
+        (fresh-line)))))
 
 #-swank (main)
